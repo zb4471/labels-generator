@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>华通标签</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://datalog.github.io/demo/qrcode-svg/qrcode.min.js"></script>
+    <style>
+        body {
+            background-color: gray;
+        }
+
+        .head {
+            box-sizing: border-box;
+            background-color: white;
+            width: 210mm;
+            margin-bottom: 10px;
+            padding: 10mm;
+        }
+
+        h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+
+        input#input-excel {
+            width: 100%;
+        }
+
+        .container {
+            position: relative;
+            margin: 5px;
+        }
+
+        .autocomplete-items {
+            position: absolute;
+            left: 110px;
+            z-index: 99;
+            /*防止在下拉列表项下方的内容被点击*/
+        }
+
+        .autocomplete-items div {
+            padding: 5px 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border-top: 1px solid #aaa;
+            border-left: 1px solid #aaa;
+            border-right: 1px solid #aaa;
+            border-bottom: none;
+            font-size: 13px;
+        }
+
+        .autocomplete-items div:last-child {
+            border: 1px solid #aaa;
+        }
+
+        .autocomplete-items div:hover {
+            /*当鼠标悬浮在选项上方时，改变其背景颜色*/
+            background-color: #e9e9e9;
+        }
+
+        div#total-labels {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        button:focus {
+            cursor: default;
+            /* 设置标准光标，而非文本光标 */
+            background-color: #4CAF50;
+            /* 焦点时的背景颜色 */
+            border-color: #fff;
+            /* 焦点时的边框颜色 */
+            color: #fff;
+            /* 文字颜色变化 */
+        }
+
+        .page {
+            box-sizing: border-box;
+            background-color: white;
+            width: 210mm;
+            padding: 10mm;
+        }
+
+        .box {
+            box-sizing: border-box;
+            padding: 2px;
+            /* 这样似乎可以避免table的线溢出 */
+            height: 41mm;
+            width: 190mm;
+            margin-bottom: 10mm;
+        }
+
+        .box:last-child {
+            margin-bottom: 0;
+        }
+
+        table {
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+
+        table td:nth-child(1) {
+            width: 40mm;
+        }
+
+        table td:nth-child(3) {
+            width: 40mm;
+        }
+
+        table td:nth-child(4) {
+            width: 20mm;
+            border: none;
+        }
+
+        table td:nth-child(5) {
+            width: 40mm;
+        }
+
+        td {
+            line-height: 1mm;
+            text-align: center;
+            border: 1px solid black;
+        }
+
+        @media print {
+
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+
+            body {
+                margin: 0;
+            }
+
+            .head {
+                display: none;
+            }
+
+            .page {
+                width: 190mm;
+                padding: 0;
+            }
+
+            .box {
+                margin-bottom: 18mm;
+                page-break-inside: avoid;
+                /* 避免在容器内部分页 */
+            }
+
+            .box:last-child {
+                margin-bottom: 0;
+            }
+
+        }
+    </style>
+</head>
+
+<body>
+    <div class="head">
+        <h3>华通标签模板</h3>
+        <div class="box">
+            <table id="content-table">
+                <thead>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>订单号</td>
+                        <td>数据1</td>
+                        <td rowspan="9">QR code</td>
+                        <td rowspan="9"></td>
+                        <td rowspan="9">QR code</td>
+                    </tr>
+                    <tr>
+                        <td>料号</td>
+                        <td>数据2</td>
+                    </tr>
+                    <tr>
+                        <td>供应商</td>
+                        <td>数据3</td>
+                    </tr>
+                    <tr>
+                        <td>品名</td>
+                        <td>数据4</td>
+                    </tr>
+                    <tr>
+                        <td>规格</td>
+                        <td>数据5</td>
+                    </tr>
+                    <tr>
+                        <td>物料批号</td>
+                        <td>数据6</td>
+                    </tr>
+                    <tr>
+                        <td>送货数量</td>
+                        <td>数据7</td>
+                    </tr>
+                    <tr>
+                        <td>生产日期</td>
+                        <td>数据8</td>
+                    </tr>
+                    <tr>
+                        <td>逾期日期</td>
+                        <td>数据9</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <label for="input-excel"></label>
+        <input type="file" id="input-excel" accept=".xlsx" />
+        <div class="container">
+            <label for="shipment-number-input" style="font-size: 14px;">输入发货号筛选:</label>
+            <input type="text" id="shipment-number-input" placeholder="输入发货号" autocomplete="off">
+            <div id="autocomplete-list" class="autocomplete-items"></div>
+            <span style="font-size: 14px">如果发货号为空，会生成所有标签</span>
+        </div>
+        <button id="process-button">生成标签</button>
+        <button id="clear-button">清除标签</button>
+        <button id="print-button">打印文档</button>
+        <div id="total-labels">未生成标签</div>
+    </div>
+    <script>
+        let globalShipments = [];  // 用于存储转换后的数据
+
+        document.getElementById('input-excel').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                globalShipments = json.map(item => ({
+                    发货号: item['发货号'] ? item['发货号'].toString() : '',  // 将发货号转换为字符串，如果未定义则设为空字符串
+                    订单号: item['订单号'],
+                    料号: item['料号'],
+                    供应商: item['供应商'],
+                    品名: item['品名'],
+                    规格: item['规格'],
+                    物料批号: item['物料批号'],
+                    送货数量: item['送货数量'],
+                    生产日期: excelDateToDate(item['生产日期']),
+                    逾期日期: excelDateToDate(item['逾期日期']),
+                    二维码: item['二维码']
+                }));
+                console.log(globalShipments);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        document.getElementById('shipment-number-input').addEventListener('input', function () {
+            var input = this.value;
+
+            // 使用 Set 来存储唯一的发货号
+            var uniqueShipmentNumbers = new Set();
+            var matchArray = globalShipments.filter(item => {
+                return item.发货号 && item.发货号.includes(input);
+            });
+
+            // 只添加唯一的发货号到 Set 中
+            matchArray.forEach(item => uniqueShipmentNumbers.add(item.发货号));
+
+            var autocompleteList = document.getElementById('autocomplete-list');
+            autocompleteList.innerHTML = '';  // 清空现有的列表项
+
+            // 遍历 Set 来创建列表项
+            uniqueShipmentNumbers.forEach(shipmentNumber => {
+                var div = document.createElement('div');
+                div.textContent = shipmentNumber;
+                div.addEventListener('click', function () {
+                    document.getElementById('shipment-number-input').value = shipmentNumber;
+                    autocompleteList.innerHTML = '';
+                });
+                autocompleteList.appendChild(div);
+            });
+        });
+
+        document.getElementById('process-button').addEventListener('click', function () {
+            var fileInput = document.getElementById('input-excel');
+            var shipmentNumber = document.getElementById('shipment-number-input').value;
+
+            // 检查文件输入是否选择了文件
+            if (fileInput.files.length === 0) {
+                alert('请先选择一个文件！');
+                return; // 提前退出函数，不继续执行后面的代码
+            }
+
+            if (shipmentNumber) {
+                filterAndRenderShipments(shipmentNumber);
+            } else {
+                renderShipments(globalShipments);
+            }
+        });
+
+        document.getElementById('clear-button').addEventListener('click', function () {
+            const existingPage = document.querySelector('.page');
+            existingPage.remove();
+            const msg = document.getElementById('total-labels');
+            msg.textContent = '标签被清除';
+        });
+
+        document.getElementById('print-button').addEventListener('click', function () {
+            // 检查页面上是否存在.page元素
+            const pageElement = document.querySelector('.page');
+            if (pageElement) {
+                window.print();  // 如果存在.page元素，执行打印
+            } else {
+                alert('没有可打印的内容，请先生成标签。');  // 如果不存在，显示警告
+            }
+        });
+
+        // 点击空白地方时，隐藏下拉列表
+        document.addEventListener('click', function (event) {
+            const autocompleteDiv = document.querySelector('.autocomplete-items');
+            // 检查点击事件是否在 autocomplete-items div 或其子元素之外发生
+            if (autocompleteDiv && !autocompleteDiv.contains(event.target)) {
+                // 隐藏 .autocomplete-items div
+                autocompleteDiv.style.display = 'none';
+            }
+        });
+
+        // 确保当用户点击输入框时，显示下拉列表
+        document.getElementById('shipment-number-input').addEventListener('click', function (event) {
+            const autocompleteDiv = document.querySelector('.autocomplete-items');
+            // 显示下拉列表
+            if (autocompleteDiv) {
+                autocompleteDiv.style.display = 'block';
+            }
+            event.stopPropagation(); // 阻止事件冒泡到 document
+        });
+
+        // 筛选并创建
+        function filterAndRenderShipments(shipmentNumber) {
+            var filteredShipments = globalShipments.filter(item => item.发货号 === shipmentNumber);
+            // 判断是否有筛选出的数据
+            if (filteredShipments.length === 0) {
+                // 如果没有数据，显示提示信息
+                alert("没有找到匹配的发货号。");
+            } else {
+                // 如果有数据，渲染发货信息
+                renderShipments(filteredShipments);
+            }
+        }
+
+        // 创建页面？
+        function renderShipments(shipments) {
+            // 检查页面上是否已经存在.page元素，如果存在则删除
+            const existingPage = document.querySelector('.page');
+            if (existingPage) {
+                existingPage.remove();
+            }
+
+            let page = document.createElement('div');
+            page.className = 'page';
+
+            shipments.forEach((shipment, index) => {
+                const table = createTable(shipment);
+
+                let box = document.createElement('div');
+                box.className = 'box';
+
+                box.appendChild(table);
+                page.appendChild(box);
+
+            });
+            document.body.appendChild(page);
+
+            // 更新标签总数显示
+            const totalLabels = document.getElementById('total-labels');
+            totalLabels.textContent = `共生成 ${shipments.length} 个标签`;
+        }
+
+        // 动态创建表格
+        function createTable(shipment) {
+            const table = document.createElement('table');
+            table.innerHTML = `
+            <tbody>
+                <tr>
+                    <td>订单号</td>
+                        <td>${shipment.订单号}</td>
+                        <td rowspan="9"></td>
+                        <td rowspan="9"></td>
+                        <td rowspan="9"></td>
+                        </tr>
+                        <tr><td>料号</td><td>${shipment.料号}</td></tr>
+                        <tr><td>供应商</td><td>${shipment.供应商}</td></tr>
+                        <tr><td>品名</td><td>${shipment.品名}</td></tr>
+                        <tr><td>规格</td><td>${shipment.规格}</td></tr>
+                        <tr><td>物料批号</td><td>${shipment.物料批号}</td></tr>
+                        <tr><td>送货数量</td><td>${shipment.送货数量}</td></tr>
+                        <tr><td>生产日期</td><td>${shipment.生产日期}</td></tr>
+                        <tr><td>逾期日期</td><td>${shipment.逾期日期}</td></tr>
+                        </tbody>
+            `;
+
+            // 生成svg二维码
+            var qr1 = generateQRCode(shipment.二维码);
+            var qr2 = generateQRCode(shipment.二维码);
+
+            var cell1 = table.rows[0].cells[2];
+            var cell2 = table.rows[0].cells[4];
+
+            cell1.appendChild(qr1);
+            cell2.appendChild(qr2);
+
+            return table;
+        }
+
+        // 生成二维码
+        function generateQRCode(data) {
+            var qr = new QRCode({
+                msg: data,
+                dim: 120,
+                pad: 0,
+                ecl: "L", // level: 'L' // Error correction level: L, M, Q, H
+                // mtx: 7,
+                // ecb: 0,
+                // pal: ["#000000", "#f2f4f8"],
+                // vrb: 1,
+            });
+            return qr;
+        }
+
+        // 转换excel日期
+        function excelDateToDate(serial) {
+            var utc_days = Math.floor(serial - 25569);
+            var utc_value = utc_days * 86400;
+            var date_info = new Date(utc_value * 1000);
+
+            var formattedDate = date_info.getUTCFullYear() + "/" +
+                (date_info.getUTCMonth() + 1) + "/" +
+                date_info.getUTCDate();
+            return formattedDate;
+        }
+
+    </script>
+
+</body>
+
+</html>
